@@ -18,3 +18,8 @@ twine = "*"
 [packages]
 libprot = {path = ".", editable = true}
 click = "*"
+numpy = "*"
+biopython = "*"
+prody = "*"
+pyparsing = "*"
+scipy = "*"
