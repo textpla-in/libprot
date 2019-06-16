@@ -3,25 +3,55 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import List
 
-from prody import confProDy
 from prody.proteins import parsePDB
 
 from .redirect_std_streams import RedirectStdStreams
 
-confProDy(verbosity='none')
 
-AminoAcid = Enum('AminoAcid',
-                 'Ala Arg Asn Asp Cys Gln Glu Gly His Ile Leu Lys Met Phe Pro Ser Thr Trp Tyr Val Asx Glx Xaa TERM other'.upper())
+class AminoAcid(Enum):
+    ALA = 'Ala'
+    ARG = 'Arg'
+    ASN = 'Asn'
+    ASP = 'Asp'
+    CYS = 'Cys'
+    GLN = 'Gln'
+    GLU = 'Glu'
+    GLY = 'Gly'
+    HIS = 'His'
+    ILE = 'Ile'
+    LEU = 'Leu'
+    LYS = 'Lys'
+    MET = 'Met'
+    PHE = 'Phe'
+    PRO = 'Pro'
+    SER = 'Ser'
+    THR = 'Thr'
+    TRP = 'Trp'
+    TYR = 'Tyr'
+    VAL = 'Val'
+    ASX = 'Asx'
+    GLX = 'Glx'
+    XAA = 'Xaa'
+    TERM = 'TERM'
+    OTHER = 'OTHER'
+
+    @classmethod
+    def to_yaml(cls, representer, node):
+        return representer.represent_scalar(f'!AminoAcid', node.value)
+
+    @classmethod
+    def from_yaml(cls, constructor, node):
+        return cls[node.value.upper()]
 
 
-@dataclass
+@dataclass(frozen=True)
 class Residue:
     chain: str
     res_num: int
     aa_type: AminoAcid
 
 
-@dataclass
+@dataclass(frozen=True)
 class Flexibility:
     is_flexible: bool = False
     include_structure_rotamer: bool = False
@@ -34,7 +64,7 @@ class ResidueModifier:
 
     @property
     def mutable(self):
-        return list(self._mutable)
+        return frozenset(self._mutable)
 
     def add_target_mutable(self, aa: AminoAcid):
         self._mutable.append(aa)
@@ -67,6 +97,17 @@ class ResidueModifier:
         self._observers = []
         self._flexibility = Flexibility()
 
+    def __eq__(self, other):
+        if not isinstance(other, type(self)):
+            return False
+
+        return (self.identity == other.identity and
+                self.mutable == other.mutable and
+                self.flexibility == other.flexibility)
+
+    def __hash__(self):
+        return hash(self.identity) + hash(self.mutable) + hash(self.flexibility)
+
     def is_mutable(self):
         return len(self._mutable) > 1  # More than just the identity
 
@@ -96,7 +137,7 @@ def get_amino_acids(path: str) -> List[Residue]:
     rv = []
     for x in structure.iterResidues():
         try:
-            aa_type = AminoAcid[x.getResname()]
+            aa_type = AminoAcid[x.getResname().upper()]
         except KeyError:
             aa_type = AminoAcid.OTHER
 

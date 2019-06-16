@@ -87,7 +87,7 @@ def to_fasta_impl(structure, pdb_id, description, mutations, out_stream):
 
     if mutations:
         mut_seq = seq.tomutable()
-        mutations = [re.search('(?P<original>\D)(?P<index>\d+)(?P<mutation>\D)', line) for line in mutations]
+        mutations = [re.search(r'(?P<original>\D)(?P<index>\d+)(?P<mutation>\D)', line) for line in mutations]
         for mut in mutations:
             idx = int(mut.group('index')) - 1
             old_aa = mut.group('original')
@@ -109,8 +109,6 @@ def to_fasta_impl(structure, pdb_id, description, mutations, out_stream):
 @click.option('-m', '--mutation-file', 'mut_file', type=click.Path(exists=True), required=False)
 def to_fasta(pdb, pdb_id, description, mut_file):
     parser = PDBParser()
-    pdb_file = parser.get_structure(pdb.replace('.pdb', ''), pdb)
-    ppb = PPBuilder()
 
     mutations = []
     if mut_file:
