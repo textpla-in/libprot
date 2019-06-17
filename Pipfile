@@ -14,6 +14,7 @@ pytest-runner = "*"
 PyInstaller = "*"
 Sphinx = "*"
 twine = "*"
+ipython = "*"
 
 [packages]
 libprot = {path = ".", editable = true}

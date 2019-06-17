@@ -1,9 +1,10 @@
 import os
+import typing
 from dataclasses import dataclass
 from enum import Enum
 from typing import List
 
-from prody.proteins import parsePDB
+from prody.proteins import parsePDB, parsePDBStream
 
 from .redirect_std_streams import RedirectStdStreams
 
@@ -56,6 +57,9 @@ class Flexibility:
     is_flexible: bool = False
     include_structure_rotamer: bool = False
 
+    def is_default(self):
+        return not self.is_flexible and not self.include_structure_rotamer
+
 
 class ResidueModifier:
     @property
@@ -64,16 +68,16 @@ class ResidueModifier:
 
     @property
     def mutable(self):
-        return frozenset(self._mutable)
+        return self._mutable.copy()
 
     def add_target_mutable(self, aa: AminoAcid):
-        self._mutable.append(aa)
+        self._mutable = self._mutable | {aa}
         for observer in self._observers:
             if hasattr(observer, 'mutability_did_change'):
                 observer.mutability_did_change(self)
 
     def remove_target_mutable(self, aa: AminoAcid):
-        self._mutable.remove(aa)
+        self._mutable = self._mutable - {aa}
         for observer in self._observers:
             if hasattr(observer, 'mutability_did_change'):
                 observer.mutability_did_change(self)
@@ -93,7 +97,7 @@ class ResidueModifier:
 
     def __init__(self, residue: Residue):
         self._identity = residue
-        self._mutable = [residue.aa_type]
+        self._mutable = frozenset()
         self._observers = []
         self._flexibility = Flexibility()
 
@@ -108,8 +112,23 @@ class ResidueModifier:
     def __hash__(self):
         return hash(self.identity) + hash(self.mutable) + hash(self.flexibility)
 
+    def __getstate__(self):
+        return {
+            'mutable': list(self.mutable),
+            'flexibility': self.flexibility,
+            'identity': self.identity
+        }
+
+    def __setstate__(self, state):
+        self._mutable = frozenset(state['mutable'])
+        self._flexibility = state['flexibility']
+        self._identity = state['identity']
+
     def is_mutable(self):
-        return len(self._mutable) > 1  # More than just the identity
+        return any(self._mutable)
+
+    def is_default(self):
+        return not self.is_mutable() and self.flexibility.is_default()
 
     def add_observer(self, observer):
         self._observers.append(observer)
@@ -131,8 +150,8 @@ def is_pdb_file(path: str) -> bool:
                 return False
 
 
-def get_amino_acids(path: str) -> List[Residue]:
-    structure = parsePDB(path).getHierView()
+def get_amino_acids(stream: typing.TextIO) -> List[Residue]:
+    structure = parsePDBStream(stream).getHierView()
 
     rv = []
     for x in structure.iterResidues():
@@ -141,6 +160,6 @@ def get_amino_acids(path: str) -> List[Residue]:
         except KeyError:
             aa_type = AminoAcid.OTHER
 
-        rv.append(Residue(chain=x.getChid(), res_num=x.getResnum(), aa_type=aa_type))
+        rv.append(Residue(chain=str(x.getChid()), res_num=int(x.getResnum()), aa_type=aa_type))
 
     return rv
