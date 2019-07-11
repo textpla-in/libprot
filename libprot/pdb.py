@@ -3,6 +3,9 @@ import typing
 from dataclasses import dataclass
 from enum import Enum
 from typing import List
+import subprocess
+import io
+from . import REDUCE_BIN, REDUCE_DB
 
 from prody.proteins import parsePDB, parsePDBStream
 
@@ -163,3 +166,12 @@ def get_amino_acids(stream: typing.TextIO) -> List[Residue]:
         rv.append(Residue(chain=str(x.getChid()), res_num=int(x.getResnum()), aa_type=aa_type))
 
     return rv
+
+
+def run_reduce(in_stream: typing.TextIO, options: typing.List[str] = None) -> typing.Tuple[int, typing.TextIO,
+                                                                                           typing.TextIO]:
+    program = [REDUCE_BIN, '-DB', REDUCE_DB]
+    default_options = ['-build', '-nuclear']
+    program += (default_options if options is None else options) + ['-']
+    completed_proc = subprocess.run(program, stdin=in_stream, capture_output=True, text=True)
+    return completed_proc.returncode, io.StringIO(completed_proc.stdout), io.StringIO(completed_proc.stderr)

@@ -9,7 +9,7 @@ from Bio import SeqIO
 from Bio.PDB import PDBParser, Superimposer, PPBuilder
 from Bio.SeqRecord import SeqRecord
 
-from libprot.pdb import get_amino_acids
+from libprot.pdb import get_amino_acids, run_reduce
 
 
 def error(msg):
@@ -134,11 +134,28 @@ def check_dihedrals():
     print('checking dihedrals')
 
 
+@click.command()
+@click.option('--file', '-f', type=click.Path(exists=True))
+def run_reduce_on_pdb(file):
+    if file is None:
+        file = '-'  # read from stdin
+
+    with click.open_file(file) as f:
+        return_code, out, err = run_reduce(f)
+
+    if return_code:
+        print('Reduce returned a non-zero error code.', file=sys.stderr)
+        print(err.read(), file=sys.stderr)
+    else:
+        print(out.read())
+
+
 main.add_command(fetch_pdb)
 main.add_command(calc_rmsd)
 main.add_command(check_dihedrals)
 main.add_command(to_fasta)
 main.add_command(dump_residues)
+main.add_command(run_reduce_on_pdb, name='run-reduce')
 
 if __name__ == "__main__":
     sys.exit(main())  # pragma: no cover
