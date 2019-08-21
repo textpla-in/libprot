@@ -10,6 +10,7 @@ from Bio.PDB import PDBParser, Superimposer, PPBuilder
 from Bio.SeqRecord import SeqRecord
 
 from libprot.pdb import get_amino_acids, run_reduce
+from libprot import amber
 
 
 def error(msg):
@@ -108,8 +109,6 @@ def to_fasta_impl(structure, pdb_id, description, mutations, out_stream):
 @click.option('-d', '--description', 'description', required=False)
 @click.option('-m', '--mutation-file', 'mut_file', type=click.Path(exists=True), required=False)
 def to_fasta(pdb, pdb_id, description, mut_file):
-    parser = PDBParser()
-
     mutations = []
     if mut_file:
         with open(mut_file, 'r') as mut:
@@ -129,33 +128,38 @@ def dump_residues(path):
         print(aa)
 
 
-@click.command()
-def check_dihedrals():
-    print('checking dihedrals')
+def file_or_stdin(f):
+    return f or '-'
 
 
-@click.command()
-@click.option('--file', '-f', type=click.Path(exists=True))
-def run_reduce_on_pdb(file):
-    if file is None:
-        file = '-'  # read from stdin
-
-    with click.open_file(file) as f:
-        return_code, out, err = run_reduce(f)
-
+def print_command_output(return_code, stdout, stderr):
     if return_code:
         print('Reduce returned a non-zero error code.', file=sys.stderr)
-        print(err.read(), file=sys.stderr)
+        print(stderr.read(), file=sys.stderr)
     else:
-        print(out.read())
+        print(stdout.read())
+
+
+@click.command(help="Run reduce on the PDB file or stdin")
+@click.option('--file', '-f', type=click.Path(exists=True))
+def run_reduce_on_pdb(file):
+    with click.open_file(file_or_stdin(file)) as f:
+        print_command_output(run_reduce(f))
+
+
+@click.command(help="Run pdb4amber on the PDB file or stdin")
+@click.option('--file', '-f', type=click.Path(exists=True))
+def run_pdb4amber(file):
+    with click.open_file(file_or_stdin(file)) as f:
+        print_command_output(amber.prep_pdb_for_amber(f))
 
 
 main.add_command(fetch_pdb)
 main.add_command(calc_rmsd)
-main.add_command(check_dihedrals)
 main.add_command(to_fasta)
 main.add_command(dump_residues)
 main.add_command(run_reduce_on_pdb, name='run-reduce')
+main.add_command(run_pdb4amber)
 
 if __name__ == "__main__":
     sys.exit(main())  # pragma: no cover
