@@ -25,14 +25,22 @@ class ForceFieldType(Enum):
     GENERAL_FF = 'leaprc.gaff2'
 
 
-def run_subprocess(bin, stdin, stdout, args):
+def ensure_bin(bin: Path):
+    if not bin.exists():
+        raise FileNotFoundError(f"{bin} does not exist")
+    if not os.access(str(bin), os.X_OK):
+        raise PermissionError(f"{bin} is not executable")
+
+
+def run_subprocess(bin: Path, stdin, stdout, args):
+    ensure_bin(bin)
     return subprocess.run([bin] + args, stdin=stdin, stdout=stdout, text=True, check=True)
 
 
 def prep_pdb_for_amber(instream: io.TextIOBase):
     """Runs pdb4amber on the structure
-    :param instream: an instream for the PDB
-    :return: a readable stream for the prepped PDB
+    :param instream: an instream for the PDB.
+    :return a readable stream for the prepped PDB
     """
     outstream = io.StringIO()
     path_to_bin = Path(_amber_home).joinpath("bin", "pdb4amber")

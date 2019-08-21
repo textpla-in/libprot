@@ -4,10 +4,8 @@
 """Tests for `libprot` package."""
 
 import pytest
-
 from click.testing import CliRunner
 
-from libprot import libprot
 from libprot import cli
 
 
