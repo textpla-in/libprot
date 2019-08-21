@@ -144,14 +144,14 @@ def print_command_output(return_code, stdout, stderr):
 @click.option('--file', '-f', type=click.Path(exists=True))
 def run_reduce_on_pdb(file):
     with click.open_file(file_or_stdin(file)) as f:
-        print_command_output(run_reduce(f))
+        print_command_output(*run_reduce(f))
 
 
 @click.command(help="Run pdb4amber on the PDB file or stdin")
 @click.option('--file', '-f', type=click.Path(exists=True))
 def run_pdb4amber(file):
     with click.open_file(file_or_stdin(file)) as f:
-        print_command_output(amber.prep_pdb_for_amber(f))
+        print_command_output(*amber.prep_pdb_for_amber(f))
 
 
 main.add_command(fetch_pdb)
