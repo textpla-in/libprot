@@ -5,6 +5,25 @@ from enum import Enum
 from pathlib import Path
 
 
+## This generates the topology and coordinates using the protein force field
+# source leaprc.protein.ff14SB
+# pdb = loadPdb /home/nsg/tmp/KE07_apo_pdb4amber.pdb
+# saveamberparm pdb prmtop prmcrd
+# quit
+
+## This runs sander
+# sander -O -i mdin -o mdout -c rst7 -p prmtop -r ncrst
+## mdin:
+# Test run 1
+#  &cntrl
+#     IMIN = 1,
+#     NCYC = 250,
+#     MAXCYC = 500,
+#     NTB = 0,
+#     IGB = 0,
+#     CUT = 12
+# /
+
 class ForceFieldType(Enum):
     PROTEIN = 'leaprc.protein.ff14SB'
     RNA = 'leaprc.RNA.OL3'
@@ -50,3 +69,7 @@ def prep_pdb_for_amber(instream: io.TextIOBase):
     env = make_amber_env()
     path_to_bin = Path(env['AMBERHOME']).joinpath("bin", "pdb4amber")
     return run_subprocess(path_to_bin, instream, ["--dry"])
+
+
+def minimize_pdb(instream: io.TextIOBase):
+    """Runs sander on the PDB to minimize it"""
