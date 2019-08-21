@@ -34,7 +34,7 @@ def ensure_bin(bin: Path):
 
 def run_subprocess(bin: Path, stdin, args):
     ensure_bin(bin)
-    completed_proc = subprocess.run([bin] + args, stdin=stdin, capture_output=True, text=True)
+    completed_proc = subprocess.run([bin] + args, stdin=stdin, capture_output=True, text=True, check=True)
     return completed_proc.returncode, io.StringIO(completed_proc.stdout), io.StringIO(completed_proc.stderr)
 
 
