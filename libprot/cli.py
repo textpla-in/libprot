@@ -165,12 +165,17 @@ __ff_map = {
 
 
 @click.command(help="Use amber to parameterize a PDB file or stdin")
-@click.option('--file', '-f', type=click.Path(exists=True))
+@click.option('--file', '-f', type=click.Path(exists=True, allow_dash=True))
 @click.option('--molecule-type', type=click.Choice(__ff_map.keys()))
 def parameterize_pdb_file(file, molecule_type):
     forcefield_type = __ff_map[molecule_type]
     with click.open_file(file_or_stdin(file)) as f:
-        amber.make_parameter_files(f, forcefield_type)
+        return_code, prmtop, prmcrd = amber.make_parameter_files(f, forcefield_type)
+        print(f'prmtop\n========')
+        print(prmtop.read())
+        print(f'prmcrd\n========')
+        print(prmcrd.read())
+
 
 
 main.add_command(fetch_pdb)

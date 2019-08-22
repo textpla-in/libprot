@@ -84,26 +84,31 @@ def make_parameter_files(in_stream: typing.TextIO, ff_type: ForceFieldType) -> t
     tmp_pdb_fd, tmp_pdb_path = tempfile.mkstemp(text=True)
     tmp_prmtop_fd, tmp_prmtop_path = tempfile.mkstemp(text=True)
     tmp_prmcrd_fd, tmp_prmcrd_path = tempfile.mkstemp(text=True)
+    tmp_tleap_fd, tmp_tleap_path = tempfile.mkstemp(text=True)
 
-    with open(tmp_pdb_fd, mode='r+') as tmp_pdb, \
-         open(tmp_prmtop_fd, mode='r+') as tmp_prmtop, \
-         open(tmp_prmcrd_fd, mode='r+') as tmp_prmcrd:
 
-        tmp_pdb.write(in_stream.read())
-
-        tleap_input = f"""source {ff_type.value}
+    tleap_input = f"""source {ff_type.value}
 pdb = loadPdb {tmp_pdb_path}
 saveamberparm pdb {tmp_prmtop_path} {tmp_prmcrd_path}
 quit"""
 
-    executable = get_amber_bin("tleap")
-    return_code, stdout, stderr = run_subprocess(executable, io.StringIO(tleap_input), ["-s", "-f", "-"])
-    tmp_prmtop.seek(0)
-    tmp_prmcrd.seek(0)
-    prmtop = io.StringIO(tmp_prmtop.read())
-    prmcrd = io.StringIO(tmp_prmcrd.read())
+    with open(tmp_pdb_fd, mode='r+') as tmp_pdb, \
+         open(tmp_prmtop_fd, mode='r+') as tmp_prmtop, \
+         open(tmp_prmcrd_fd, mode='r+') as tmp_prmcrd, \
+         open(tmp_tleap_fd, mode='r+') as tmp_tleap:
 
-    for path in [tmp_pdb_path, tmp_prmtop_path, tmp_prmcrd_path]:
+        tmp_tleap.write(tleap_input)
+        tmp_tleap.seek(0)
+        tmp_pdb.write(in_stream.read())
+
+        executable = get_amber_bin("tleap")
+        return_code, stdout, stderr = run_subprocess(executable, tmp_tleap, ["-s", "-f", "-"])
+        tmp_prmtop.seek(0)
+        tmp_prmcrd.seek(0)
+        prmtop = io.StringIO(tmp_prmtop.read())
+        prmcrd = io.StringIO(tmp_prmcrd.read())
+
+    for path in [tmp_pdb_path, tmp_prmtop_path, tmp_prmcrd_path, tmp_tleap_path]:
         os.unlink(path)
 
     return return_code, prmtop, prmcrd
