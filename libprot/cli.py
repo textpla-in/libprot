@@ -11,6 +11,7 @@ from Bio.SeqRecord import SeqRecord
 
 from libprot.pdb import get_amino_acids, run_reduce
 from libprot import amber
+from libprot.amber import ForceFieldType
 
 
 def error(msg):
@@ -154,12 +155,31 @@ def run_pdb4amber(file):
         print_command_output(*amber.prep_pdb_for_amber(f))
 
 
+__ff_map = {
+    'protein': ForceFieldType.PROTEIN,
+    'dna': ForceFieldType.DNA,
+    'rna': ForceFieldType.RNA,
+    'water': ForceFieldType.WATER,
+    'general': ForceFieldType.GENERAL_FF
+}
+
+
+@click.command(help="Use amber to parameterize a PDB file or stdin")
+@click.option('--file', '-f', type=click.Path(exists=True))
+@click.option('--molecule-type', type=click.Choice(__ff_map.keys()))
+def parameterize_pdb_file(file, molecule_type):
+    forcefield_type = __ff_map[molecule_type]
+    with click.open_file(file_or_stdin(file)) as f:
+        amber.make_parameter_files(f, forcefield_type)
+
+
 main.add_command(fetch_pdb)
 main.add_command(calc_rmsd)
 main.add_command(to_fasta)
 main.add_command(dump_residues)
 main.add_command(run_reduce_on_pdb, name='run-reduce')
 main.add_command(run_pdb4amber)
+main.add_command(parameterize_pdb_file, name='parameterize')
 
 if __name__ == "__main__":
     sys.exit(main())  # pragma: no cover

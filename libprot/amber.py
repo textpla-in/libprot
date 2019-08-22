@@ -1,8 +1,10 @@
 import io
 import os
 import subprocess
+import tempfile
 from enum import Enum
 from pathlib import Path
+import typing
 
 
 ## This generates the topology and coordinates using the protein force field
@@ -55,21 +57,71 @@ def ensure_bin(bin: Path):
 
 
 def run_subprocess(bin: Path, stdin, args):
-    ensure_bin(bin)
     completed_proc = subprocess.run([str(bin)] + args, stdin=stdin, capture_output=True, text=True,
                                     env=make_amber_env())
     return completed_proc.returncode, io.StringIO(completed_proc.stdout), io.StringIO(completed_proc.stderr)
 
 
-def prep_pdb_for_amber(instream: io.TextIOBase):
+def get_amber_bin(program_name: str) -> Path:
+    """Finds a program in the bin directory """
+    env = make_amber_env()
+    executable = Path(env['AMBERHOME']).joinpath("bin", program_name)
+    ensure_bin(executable)
+    return executable
+
+
+def prep_pdb_for_amber(instream: typing.TextIO) -> typing.Tuple[int, typing.TextIO, typing.TextIO]:
     """Runs pdb4amber on the structure
     :param instream: an instream for the PDB.
     :return tuple(return code, stdout, stderr)
     """
-    env = make_amber_env()
-    path_to_bin = Path(env['AMBERHOME']).joinpath("bin", "pdb4amber")
-    return run_subprocess(path_to_bin, instream, ["--dry"])
+    executable = get_amber_bin("pdb4amber")
+    return run_subprocess(executable, instream, ["--dry"])
 
 
-def minimize_pdb(instream: io.TextIOBase):
+def make_parameter_files(in_stream: typing.TextIO, ff_type: ForceFieldType) -> typing.Tuple[int, typing.TextIO, typing.TextIO]:
+    # write input structure to temporary file
+    tmp_pdb_fd, tmp_pdb_path = tempfile.mkstemp(text=True)
+    tmp_prmtop_fd, tmp_prmtop_path = tempfile.mkstemp(text=True)
+    tmp_prmcrd_fd, tmp_prmcrd_path = tempfile.mkstemp(text=True)
+
+    with open(tmp_pdb_fd, mode='r+') as tmp_pdb, \
+         open(tmp_prmtop_fd, mode='r+') as tmp_prmtop, \
+         open(tmp_prmcrd_fd, mode='r+') as tmp_prmcrd:
+
+        tmp_pdb.write(in_stream.read())
+
+        tleap_input = f"""source {ff_type.value}
+pdb = loadPdb {tmp_pdb_path}
+saveamberparm pdb {tmp_prmtop_path} {tmp_prmcrd_path}
+quit"""
+
+    executable = get_amber_bin("tleap")
+    return_code, stdout, stderr = run_subprocess(executable, io.StringIO(tleap_input), ["-s", "-f", "-"])
+    tmp_prmtop.seek(0)
+    tmp_prmcrd.seek(0)
+    prmtop = io.StringIO(tmp_prmtop.read())
+    prmcrd = io.StringIO(tmp_prmcrd.read())
+
+    for path in [tmp_pdb_path, tmp_prmtop_path, tmp_prmcrd_path]:
+        os.unlink(path)
+
+    return return_code, prmtop, prmcrd
+
+
+def minimize_pdb(instream: io.TextIOBase) -> typing.e[int, typing.TextIO, typing.TextIO]:
     """Runs sander on the PDB to minimize it"""
+    ## This runs sander
+    # sander -O -i mdin -o mdout -c rst7 -p prmtop -r ncrst
+    ## mdin:
+    # Test run 1
+    #  &cntrl
+    #     IMIN = 1,
+    #     NCYC = 250,
+    #     MAXCYC = 500,
+    #     NTB = 0,
+    #     IGB = 0,
+    #     CUT = 12
+    # /
+    executable = get_amber_bin("sander")
+    return run_subprocess(executable, instream)
