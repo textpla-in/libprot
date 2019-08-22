@@ -109,7 +109,7 @@ quit"""
     return return_code, prmtop, prmcrd
 
 
-def minimize_pdb(instream: io.TextIOBase) -> typing.e[int, typing.TextIO, typing.TextIO]:
+def minimize_pdb(instream: io.TextIOBase) -> typing.Tuple[int, typing.TextIO, typing.TextIO]:
     """Runs sander on the PDB to minimize it"""
     ## This runs sander
     # sander -O -i mdin -o mdout -c rst7 -p prmtop -r ncrst
