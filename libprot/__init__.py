@@ -8,7 +8,7 @@ from prody import confProDy
 
 __author__ = """Nate Guerin"""
 __email__ = 'nate@textpla.in'
-__version__ = '0.1.3'
+__version__ = '0.1.4'
 
 confProDy(verbosity='none')
 
