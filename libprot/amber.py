@@ -5,6 +5,7 @@ import tempfile
 from enum import Enum
 from pathlib import Path
 import typing
+import sys
 
 
 ## This generates the topology and coordinates using the protein force field
@@ -13,6 +14,8 @@ import typing
 # saveamberparm pdb prmtop prmcrd
 # quit
 
+
+# See http://ambermd.org/tutorials/basic/tutorial1/section3.htm for invocation and options of sander
 ## This runs sander
 # sander -O -i mdin -o mdout -c rst7 -p prmtop -r ncrst
 ## mdin:
@@ -57,7 +60,7 @@ def ensure_bin(bin: Path):
 
 
 def run_subprocess(bin: Path, stdin, args):
-    completed_proc = subprocess.run([str(bin)] + args, stdin=stdin, capture_output=True, text=True,
+    completed_proc = subprocess.run([str(bin)] + args, stdin=(stdin or sys.stdin), capture_output=True, text=True,
                                     env=make_amber_env())
     return completed_proc.returncode, io.StringIO(completed_proc.stdout), io.StringIO(completed_proc.stderr)
 
@@ -114,19 +117,61 @@ quit"""
     return return_code, prmtop, prmcrd
 
 
-def minimize_pdb(instream: io.TextIOBase) -> typing.Tuple[int, typing.TextIO, typing.TextIO]:
+def run_sander(topology: typing.TextIO, coordinates: typing.TextIO, max_cycles: int) -> typing.Tuple[int, typing.BinaryIO, typing.TextIO]:
     """Runs sander on the PDB to minimize it"""
+    tmp_topology_fd, tmp_topology_path = tempfile.mkstemp(text=True)
+    tmp_coordinates_fd, tmp_coordinates_path = tempfile.mkstemp(text=True)
+    tmp_mdin_fd, tmp_mdin_path = tempfile.mkstemp(text=True)
+    tmp_restart_fd, tmp_restart_path = tempfile.mkstemp(text=True)
+    tmp_mdout_fd, tmp_mdout_path = tempfile.mkstemp(text=True)
+
+    input_file = f"""
+Minimization with implicit solvent
+ &cntrl
+    IMIN = 1,
+    MAXCYC = {max_cycles},
+    IGB = 1,
+    CUT = 12
+/
+"""
+
+    with open(tmp_topology_fd, 'w') as tmp_topology, open(tmp_coordinates_fd, 'w') as tmp_coordinates, open(tmp_mdin_fd, 'w') as tmp_mdin:
+        tmp_topology.write(topology.read())
+        tmp_coordinates.write(coordinates.read())
+        tmp_mdin.write(input_file)
+
+    executable = get_amber_bin("sander")
+    try:
+        return_code, stdout, stderr = run_subprocess(executable, None, ['-O', '-i', tmp_mdin_path, '-o', tmp_mdout_path, '-c', tmp_coordinates_path, '-r', tmp_restart_path])
+        with open(tmp_restart_fd, 'rb') as final_coords:
+            return return_code, io.BytesIO(final_coords.read()), stderr
+    finally:
+        for path in [tmp_topology_path, tmp_coordinates_path, tmp_mdin_path, tmp_restart_path, tmp_mdout_path]:
+            os.unlink(path)
+
     ## This runs sander
     # sander -O -i mdin -o mdout -c rst7 -p prmtop -r ncrst
     ## mdin:
-    # Test run 1
+    # General Protein Minimization
     #  &cntrl
     #     IMIN = 1,
-    #     NCYC = 250,
-    #     MAXCYC = 500,
-    #     NTB = 0,
-    #     IGB = 0,
-    #     CUT = 12
+    #     MAXCYC = 500
     # /
-    executable = get_amber_bin("sander")
-    return run_subprocess(executable, instream)
+
+
+def convert_coords_to_pdb(topology: typing.TextIO, coordinates: typing.BinaryIO) -> typing.Tuple[int, typing.TextIO, typing.TextIO]:
+    tmp_topology_fd, tmp_topology_path = tempfile.mkstemp(text=True)
+    tmp_coordinates_fd, tmp_coordinates_path = tempfile.mkstemp(text=True)
+    tmp_pdb_fd, tmp_pdb_path = tempfile.mkstemp(text=True)
+
+    with open(tmp_topology_fd, 'w') as tmp_topology, open(tmp_coordinates_fd, 'wb') as tmp_coordinates:
+        tmp_topology.write(topology.read())
+        tmp_coordinates.write(coordinates.read())
+
+    executable = get_amber_bin("ambpdb")
+
+    try:
+        return run_subprocess(executable, None, ["-p", tmp_topology_path, "-c", tmp_coordinates_path])
+    finally:
+        for path in [tmp_topology_path, tmp_coordinates_path, tmp_pdb_path]:
+            os.unlink(path)

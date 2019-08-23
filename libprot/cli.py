@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import re
 import sys
+import typing
 
 import click
 import numpy as np
@@ -149,7 +150,7 @@ def run_reduce_on_pdb(file):
 
 
 @click.command(help="Run pdb4amber on the PDB file or stdin")
-@click.option('--file', '-f', type=click.Path(exists=True))
+@click.option('--file', '-f', type=click.Path(exists=True, allow_dash=True))
 def run_pdb4amber(file):
     with click.open_file(file_or_stdin(file)) as f:
         print_command_output(*amber.prep_pdb_for_amber(f))
@@ -177,6 +178,20 @@ def parameterize_pdb_file(file, molecule_type):
         print(prmcrd.read())
 
 
+@click.command(help="Use sander to minimize a molecule")
+@click.option('--topology', '-t', type=click.File())
+@click.option('--coordinates', '-c', type=click.File())
+@click.option('--rounds', '-c', type=click.IntRange(min=100, max=1000))
+def minimize_parameter_files(topology, coordinates, rounds):
+    print_command_output(*amber.run_sander(topology, coordinates, rounds))
+
+
+@click.command(help="Convert an amber coordinates file to a PDB")
+@click.option('--topology', '-t', type=click.File(mode='r'))
+@click.option('--coordinates', '-c', type=click.File(mode='rb'))
+def coordinates_to_pdb(topology: typing.TextIO, coordinates: typing.BinaryIO):
+    print_command_output(*amber.convert_coords_to_pdb(topology, coordinates))
+
 
 main.add_command(fetch_pdb)
 main.add_command(calc_rmsd)
@@ -185,6 +200,8 @@ main.add_command(dump_residues)
 main.add_command(run_reduce_on_pdb, name='run-reduce')
 main.add_command(run_pdb4amber)
 main.add_command(parameterize_pdb_file, name='parameterize')
+main.add_command(coordinates_to_pdb, name='coords-to-pdb')
+main.add_command(minimize_parameter_files, name='run-sander')
 
 if __name__ == "__main__":
     sys.exit(main())  # pragma: no cover
