@@ -192,6 +192,11 @@ def minimize_parameter_files(topology, coordinates, rounds):
 def coordinates_to_pdb(topology: typing.TextIO, coordinates: typing.BinaryIO):
     print_command_output(*amber.convert_coords_to_pdb(topology, coordinates))
 
+@click.command(help="Minimize a protein in a PDB file")
+@click.option('--file', '-f', type=click.File())
+def minimize_protein(file):
+    print_command_output(*amber.do_minimize_pdb(file, ForceFieldType.PROTEIN, 200))
+
 
 main.add_command(fetch_pdb)
 main.add_command(calc_rmsd)
@@ -202,6 +207,7 @@ main.add_command(run_pdb4amber)
 main.add_command(parameterize_pdb_file, name='parameterize')
 main.add_command(coordinates_to_pdb, name='coords-to-pdb')
 main.add_command(minimize_parameter_files, name='run-sander')
+main.add_command(minimize_protein, name='minimize-protein')
 
 if __name__ == "__main__":
     sys.exit(main())  # pragma: no cover

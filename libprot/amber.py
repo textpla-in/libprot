@@ -141,22 +141,15 @@ Minimization with implicit solvent
         tmp_mdin.write(input_file)
 
     executable = get_amber_bin("sander")
+    args = ['-O', '-i', tmp_mdin_path, '-o', tmp_mdout_path, '-c', tmp_coordinates_path, '-p', tmp_topology_path, '-r', tmp_restart_path]
+
     try:
-        return_code, stdout, stderr = run_subprocess(executable, None, ['-O', '-i', tmp_mdin_path, '-o', tmp_mdout_path, '-c', tmp_coordinates_path, '-r', tmp_restart_path])
+        return_code, stdout, stderr = run_subprocess(executable, None, args)
         with open(tmp_restart_fd, 'rb') as final_coords:
             return return_code, io.BytesIO(final_coords.read()), stderr
     finally:
         for path in [tmp_topology_path, tmp_coordinates_path, tmp_mdin_path, tmp_restart_path, tmp_mdout_path]:
             os.unlink(path)
-
-    ## This runs sander
-    # sander -O -i mdin -o mdout -c rst7 -p prmtop -r ncrst
-    ## mdin:
-    # General Protein Minimization
-    #  &cntrl
-    #     IMIN = 1,
-    #     MAXCYC = 500
-    # /
 
 
 def convert_coords_to_pdb(topology: typing.TextIO, coordinates: typing.BinaryIO) -> typing.Tuple[int, typing.TextIO, typing.TextIO]:
@@ -175,3 +168,11 @@ def convert_coords_to_pdb(topology: typing.TextIO, coordinates: typing.BinaryIO)
     finally:
         for path in [tmp_topology_path, tmp_coordinates_path, tmp_pdb_path]:
             os.unlink(path)
+
+
+def do_minimize_pdb(pdb: typing.TextIO, ff_type: ForceFieldType, rounds: int) -> typing.Tuple[int, typing.TextIO, typing.TextIO]:
+    return_code, stdout, stderr = prep_pdb_for_amber(pdb) 
+    return_code, prmtop, prmcrd = make_parameter_files(stdout, ff_type)
+    topology = prmtop.read()
+    return_code, final_coords, stderr  = run_sander(io.StringIO(topology), prmcrd, rounds)
+    return convert_coords_to_pdb(io.StringIO(topology), final_coords)
