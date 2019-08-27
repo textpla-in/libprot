@@ -82,6 +82,11 @@ def prep_pdb_for_amber(instream: typing.TextIO) -> typing.Tuple[int, typing.Text
     return run_subprocess(executable, instream, ["--dry"])
 
 
+def reduce_pdb(instream: typing.TextIO) -> typing.Tuple[int, typing.TextIO, typing.TextIO]:
+    executable = get_amber_bin("reduce")
+    return run_subprocess(executable, instream, ["-build", "-nuclear"])
+
+
 def make_parameter_files(in_stream: typing.TextIO, ff_type: ForceFieldType) -> typing.Tuple[int, typing.TextIO, typing.TextIO]:
     # write input structure to temporary file
     tmp_pdb_fd, tmp_pdb_path = tempfile.mkstemp(text=True)
@@ -171,7 +176,7 @@ def convert_coords_to_pdb(topology: typing.TextIO, coordinates: typing.BinaryIO)
 
 
 def do_minimize_pdb(pdb: typing.TextIO, ff_type: ForceFieldType, rounds: int) -> typing.Tuple[int, typing.TextIO, typing.TextIO]:
-    return_code, stdout, stderr = prep_pdb_for_amber(pdb) 
+    return_code, stdout, stderr = prep_pdb_for_amber(pdb)
     return_code, prmtop, prmcrd = make_parameter_files(stdout, ff_type)
     topology = prmtop.read()
     return_code, final_coords, stderr  = run_sander(io.StringIO(topology), prmcrd, rounds)
