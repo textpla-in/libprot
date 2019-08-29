@@ -84,7 +84,7 @@ def prep_pdb_for_amber(instream: typing.TextIO) -> typing.Tuple[int, typing.Text
 
 def reduce_pdb(instream: typing.TextIO) -> typing.Tuple[int, typing.TextIO, typing.TextIO]:
     executable = get_amber_bin("reduce")
-    return run_subprocess(executable, instream, ["-build", "-nuclear"])
+    return run_subprocess(executable, instream, ["-build", "-nuclear", "-"])
 
 
 def make_parameter_files(in_stream: typing.TextIO, ff_type: ForceFieldType) -> typing.Tuple[int, typing.TextIO, typing.TextIO]:
