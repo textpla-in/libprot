@@ -10,9 +10,9 @@ from Bio import SeqIO
 from Bio.PDB import PDBParser, Superimposer, PPBuilder
 from Bio.SeqRecord import SeqRecord
 
-from libprot.pdb import get_amino_acids, run_reduce
+from libprot.pdb import get_amino_acids
 from libprot import amber
-from libprot.amber import ForceFieldType
+from libprot.amber import ForceFieldType, reduce_pdb
 
 
 def error(msg):
@@ -146,7 +146,7 @@ def print_command_output(return_code, stdout, stderr):
 @click.option('--file', '-f', type=click.Path(exists=True))
 def run_reduce_on_pdb(file):
     with click.open_file(file_or_stdin(file)) as f:
-        print_command_output(*run_reduce(f))
+        print_command_output(*reduce_pdb(f))
 
 
 @click.command(help="Run pdb4amber on the PDB file or stdin")
