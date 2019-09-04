@@ -29,20 +29,17 @@ def _get_residues_in_shell(atom_group: AtomGroup, residue: ResidueIdentifier, sh
     return set(ResidueIdentifier(res_name=atom.getResname(), res_seq=atom.getResnum()) for atom in shell_atoms)
 
 
-def find_residues_in_shell_of_mutants(template_structure: Path, target_structure: Path, shell: float) -> typing.Set[
-    ResidueIdentifier]:
-    # Find mutations
+def find_residues_in_shell_of_mutants(template_structure: Path, target_structure: Path, shell: float) -> typing.Set[ResidueIdentifier]:
+
     with template_structure.open() as template, target_structure.open() as target:
+        # Find mutations
         bio_template = PDBParser(QUIET=True).get_structure(basename(template_structure), template)
         bio_target = PDBParser(QUIET=True).get_structure(basename(target_structure), target)
         diffs = find_mutated_residues(bio_template, bio_target)
 
-        template.seek(0)
-        target.seek(0)
-
         # Find all residues within any of the mutations
         prody_target = parsePDB(target_structure)
-        in_shell_residues = [get_residues_in_shell(prody_target, flexible_residues, shell)
+        in_shell_residues = [_get_residues_in_shell(prody_target, flexible_residues, shell)
                              for flexible_residues in diffs]
         all_in_shells = functools.reduce(operator.ior, in_shell_residues)
 
