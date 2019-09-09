@@ -8,6 +8,8 @@ from ruamel.yaml import YAML
 
 from ..pdb import ResidueModifier
 
+from . import _YAML
+
 
 @dataclass
 class Stability:
@@ -20,13 +22,12 @@ class Stability:
 
     def to_yaml(self) -> str:
         dict_repr = asdict(self)
-        yaml = YAML()
         str_out = StringIO()
-        yaml.dump(dict_repr, str_out)
+        _YAML.dump(dict_repr, str_out)
         return str_out.getvalue()
 
     @classmethod
     def from_yaml(cls, stream: typing.TextIO) -> Stability:
-        d = YAML().load(stream)
+        d = _YAML.load(stream)
         stability = cls(**d)
         return stability

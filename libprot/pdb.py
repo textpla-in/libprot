@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-import typing
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from enum import Enum
-from io import StringIO
-from typing import List
 
+import typing
 from prody.proteins import parsePDBStream
-from ruamel.yaml import YAML
+from typing import List
 
 
 class AminoAcid(Enum):
@@ -39,7 +37,7 @@ class AminoAcid(Enum):
 
     @classmethod
     def to_yaml(cls, representer, node):
-        return representer.represent_scalar(f'!AminoAcid', node.value)
+        return representer.represent_str(node.value)
 
     @classmethod
     def from_yaml(cls, constructor, node):

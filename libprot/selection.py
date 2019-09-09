@@ -18,7 +18,7 @@ class ResidueIdentifier:
 
 def find_mutated_residues(template: Structure, new_struct: Structure) -> typing.Set[ResidueIdentifier]:
     generator = zip(template.get_residues(), new_struct.get_residues())
-    return {ResidueIdentifier(struct_res.get_resname(), struct_res.get_id()[1])
+    return {ResidueIdentifier(struct_res.get_resname(), int(struct_res.get_id()[1]))
             for temp_res, struct_res in generator
             if temp_res.get_resname() != struct_res.get_resname()}
 
@@ -31,7 +31,10 @@ def get_residues_in_shell(pdb_path: Path, residue: ResidueIdentifier, shell_angs
 def _get_residues_in_shell(atom_group: AtomGroup, residue: ResidueIdentifier, shell_angs: float) -> typing.Set[ResidueIdentifier]:
     residue_atoms = atom_group.select(f'resnum {residue.res_seq}')
     shell_atoms = atom_group.select(f'same residue as exwithin {shell_angs} of ag', ag=residue_atoms)
-    return set(ResidueIdentifier(res_name=atom.getResname(), res_seq=atom.getResnum()) for atom in shell_atoms)
+    if not shell_atoms:
+        return set()
+
+    return set(ResidueIdentifier(res_name=atom.getResname(), res_seq=int(atom.getResnum())) for atom in shell_atoms)
 
 
 def find_residues_in_shell_of_mutants(template_structure: Path, target_structure: Path, shell: float) -> typing.Set[ResidueIdentifier]:
