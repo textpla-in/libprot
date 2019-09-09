@@ -1,6 +1,7 @@
 from collections import namedtuple
 import operator
 import typing
+from dataclasses import dataclass
 from pathlib import Path
 from os.path import basename
 import functools
@@ -8,7 +9,11 @@ import functools
 from Bio.PDB import PDBParser, Structure
 from prody import parsePDB, AtomGroup
 
-ResidueIdentifier = namedtuple('ResidueIdentifier', ['res_name', 'res_seq'])
+
+@dataclass(frozen=True)
+class ResidueIdentifier:
+    res_name: str
+    res_seq: int
 
 
 def find_mutated_residues(template: Structure, new_struct: Structure) -> typing.Set[ResidueIdentifier]:
