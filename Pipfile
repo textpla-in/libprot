@@ -17,7 +17,7 @@ twine = "*"
 ipython = "*"
 
 [packages]
-libprot = {path = ".", editable = true}
+libprot = {path = ".",editable = true}
 click = "*"
 numpy = "*"
 biopython = "*"
@@ -25,3 +25,4 @@ prody = "*"
 pyparsing = "*"
 scipy = "*"
 requests = "*"
+ruamel-yaml = "*"

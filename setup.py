@@ -12,12 +12,13 @@ with open('HISTORY.rst') as history_file:
     history = history_file.read()
 
 requirements = [
-        'Click>=6.0', 
-        'numpy>=1.16.4', 
-        'biopython>=1.73', 
-        'ProDy>=1.10.10', 
-        'pyparsing>=2.4.0', 
+        'Click>=6.0',
+        'numpy>=1.16.4',
+        'biopython>=1.73',
+        'ProDy>=1.10.10',
+        'pyparsing>=2.4.0',
         'scipy>=1.3.0',
+        'ruamel.yaml>=0.16.5'
     ]
 
 setup_requirements = ['pytest-runner', ]

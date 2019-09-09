@@ -192,6 +192,7 @@ def minimize_parameter_files(topology, coordinates, rounds):
 def coordinates_to_pdb(topology: typing.TextIO, coordinates: typing.BinaryIO):
     print_command_output(*amber.convert_coords_to_pdb(topology, coordinates))
 
+
 @click.command(help="Minimize a protein in a PDB file")
 @click.option('--file', '-f', type=click.File())
 def minimize_protein(file):
