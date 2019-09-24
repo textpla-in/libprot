@@ -18,6 +18,7 @@ class AminoAcid(Enum):
     GLU = 'Glu'
     GLY = 'Gly'
     HIS = 'His'
+    HIE = 'Hie'
     ILE = 'Ile'
     LEU = 'Leu'
     LYS = 'Lys'
