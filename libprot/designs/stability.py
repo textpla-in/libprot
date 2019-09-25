@@ -4,7 +4,7 @@ import typing
 from dataclasses import dataclass, field, asdict
 from io import StringIO
 
-from ruamel.yaml import YAML
+from ruamel.yaml.scalarstring import PreservedScalarString as L
 
 from ..pdb import ResidueModifier
 
@@ -22,6 +22,7 @@ class Stability:
 
     def to_yaml(self) -> str:
         dict_repr = asdict(self)
+        dict_repr["molecule"] = L(self.molecule)
         str_out = StringIO()
         _YAML.dump(dict_repr, str_out)
         return str_out.getvalue()
