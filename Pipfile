@@ -26,6 +26,3 @@ pyparsing = "*"
 scipy = "*"
 requests = "*"
 ruamel-yaml = "*"
-
-[requires]
-python_version = "3.7"

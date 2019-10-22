@@ -1,18 +1,21 @@
-# -*- coding: utf-8 -*-
+import dataclasses
+import itertools
 import re
 import sys
 import typing
+from pathlib import Path
 
 import click
 import numpy as np
 import requests
-from Bio import SeqIO
-from Bio.PDB import PDBParser, Superimposer, PPBuilder
+from Bio.PDB import PDBParser, Superimposer, PPBuilder, Structure, is_aa
+from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 
-from libprot.pdb import get_amino_acids
 from libprot import amber
 from libprot.amber import ForceFieldType, reduce_pdb
+from libprot.pdb import get_amino_acids
+from libprot.types import Mutation, Indel
 
 
 def error(msg):
@@ -79,30 +82,105 @@ def edit_distance(seq1, seq2):
     return mat[len(seq1), len(seq2)]
 
 
-def to_fasta_impl(structure, pdb_id, description, mutations, out_stream):
+def parse_mutations(mutations: typing.List[str]) -> typing.List[Mutation]:
+    mutations = [re.search(r'(?P<chain>\D):(?P<mut_from>\D)(?P<index>\d+)(?P<mut_to>\D)', mutation) for mutation in mutations]
+    return [Mutation(mut.group('chain'), int(mut.group('index')), mut.group('mut_from'), mut.group('mut_to')) for mut in mutations]
+
+
+def index_in_lists(seqs: typing.List[typing.Any], idx: int) -> typing.Tuple[int, int]:
+    seq_idx = 0
+    for seq in seqs:
+        try:
+            seq[idx]
+        except IndexError:
+            idx -= len(seq)
+            seq_idx += 1
+
+    return seq_idx, idx
+
+
+def mutate_residues(structure: Structure, seqs: typing.List[Seq], mutations: typing.List[Mutation]) -> typing.List[Seq]:
+
+    def match_residue(res):
+        return int(res.get_id()[1]) == mutation.index and res.get_parent().get_id() == mutation.chain
+
+    for mutation in mutations:
+        res = next(filter(match_residue, structure.get_residues()))
+        index = [res for res in structure.get_residues() if is_aa(res)].index(res)
+        seq_idx, idx_in_seq = index_in_lists(seqs, index)
+        mut_seq = seqs[seq_idx].tomutable()
+
+        if mutation.from_aa != mut_seq[idx_in_seq]:
+            raise Exception(f'The amino acid at index {idx_in_seq} is {mut_seq[idx_in_seq]}, not {mutation.from_aa}')
+        mut_seq[idx_in_seq] = mutation.to_aa
+        seqs[seq_idx] = mut_seq.toseq()
+
+    return seqs
+
+
+def parse_to_structure(path: Path) -> Structure:
+    return PDBParser(QUIET=True).get_structure(path.name, path)
+
+
+def parse_indels(indels: typing.List[str]) -> typing.List[Indel]:
+    indels = [re.search(r'(?P<chain>\D):(?P<amino_acid>\D)(?P<index>\d+)', insertion) for insertion in indels]
+    indels = [Indel(ins.group('chain'), int(ins.group('index')), ins.group('amino_acid')) for ins in indels]
+    return indels
+
+
+def add_indels(structure: Structure, seqs: typing.List[Seq], indels: typing.List[Indel]) -> typing.List[Seq]:
+
+    def match_residue(res):
+        return int(res.get_id()[1]) == insertion.index and res.get_parent().get_id() == insertion.chain
+
+    insertions = sorted(id for id in indels if id.is_insertion())
+    deletions = sorted(id for id in indels if not id.is_insertion())
+
+    while insertions:
+        insertion, insertions = insertions[0], insertions[1:]
+        res = next(filter(match_residue, structure.get_residues()))
+        aas = [aa for aa in structure.get_residues() if is_aa(aa)]
+        index = aas.index(res)
+        seq_idx, idx_in_seq = index_in_lists(seqs, index)
+        seq = seqs[seq_idx].tomutable()
+        beginning, end = seq[:idx_in_seq], seq[idx_in_seq:]
+        seqs[seq_idx] = (beginning + insertion.aa + end).toseq()
+
+    return seqs
+
+
+def extract_sequence_from_pdb_file(path: Path) -> typing.List[Seq]:
+    return [pp.get_sequence() for pp in PPBuilder().build_peptides(parse_to_structure(path))]
+
+
+def mutate_and_indels(structure: Structure, seqs: typing.List[Seq], mutations: typing.List[Mutation], indels: typing.List[Indel]) -> typing.List[Seq]:
+    seqs = mutate_residues(structure, seqs, mutations)
+    seqs = add_indels(structure, seqs, indels)
+    return seqs
+
+
+def to_fasta_impl(path: Path, pdb_id: str, description: str, mutations: typing.List[str], insertions: typing.List[str], deletions: typing.List[str]) -> typing.List[SeqRecord]:
     if pdb_id is None:
         pdb_id = ""
     if description is None:
         description = ""
 
-    ppb = PPBuilder()
-    seq = [pp.get_sequence() for pp in ppb.build_peptides(structure)][0]
+    seqs = extract_sequence_from_pdb_file(path)
+    structure = parse_to_structure(path)
 
     if mutations:
-        mut_seq = seq.tomutable()
-        mutations = [re.search(r'(?P<original>\D)(?P<index>\d+)(?P<mutation>\D)', line) for line in mutations]
-        for mut in mutations:
-            idx = int(mut.group('index')) - 1
-            old_aa = mut.group('original')
-            new_aa = mut.group('mutation')
-            if old_aa != mut_seq[idx]:
-                raise Exception(
-                    f'The amino acid in {pdb_id} at index {mut.group("index")} is {mut_seq[idx]}, not {old_aa}')
-            mut_seq[idx] = new_aa
-        seq = mut_seq.toseq()
+        seqs = mutate_residues(structure, seqs, parse_mutations(mutations))
 
-    sequence_record = SeqRecord(seq, id=pdb_id, description=description)
-    SeqIO.write([sequence_record], out_stream, "fasta")
+    if insertions:
+        seqs = add_indels(structure, seqs, list(map(lambda x: dataclasses.replace(x, type=0), parse_indels(insertions))))
+
+    if deletions:
+        seqs = add_indels(structure, seqs, list(map(lambda x: dataclasses.replace(x, type=1), parse_indels(deletions))))
+
+    records = [SeqRecord(seq,
+                         id=f'{pdb_id}{idx}' if len(seqs) > 1 else pdb_id,
+                         description=f'{description}') for idx, seq in enumerate(seqs)]
+    return records
 
 
 @click.command()
@@ -119,7 +197,7 @@ def to_fasta(pdb, pdb_id, description, mut_file):
     parser = PDBParser()
     structure = parser.get_structure(pdb.replace('.pdb', ''), pdb)
 
-    to_fasta_impl(structure, pdb_id, description, mutations, sys.stdout)
+    to_fasta_impl(structure, pdb_id, description, mutations, None, None)
 
 
 @click.command()

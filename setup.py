@@ -18,7 +18,8 @@ requirements = [
         'ProDy>=1.10.10',
         'pyparsing>=2.4.0',
         'scipy>=1.3.0',
-        'ruamel.yaml>=0.16.5'
+        'ruamel.yaml>=0.16.5',
+        'requests>=2.22.0'
     ]
 
 setup_requirements = ['pytest-runner', ]
