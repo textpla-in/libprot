@@ -59,7 +59,7 @@ def ensure_bin(bin: Path):
         raise PermissionError(f"{bin} is not executable")
 
 
-def run_subprocess(bin: Path, stdin, args):
+def run_subprocess(bin: Path, stdin, args) -> typing.Tuple[int, io.StringIO, io.StringIO]:
     completed_proc = subprocess.run([str(bin)] + args, stdin=(stdin or sys.stdin), capture_output=True, text=True,
                                     env=make_amber_env())
     return completed_proc.returncode, io.StringIO(completed_proc.stdout), io.StringIO(completed_proc.stderr)
@@ -82,18 +82,19 @@ def prep_pdb_for_amber(instream: typing.TextIO) -> typing.Tuple[int, typing.Text
     return run_subprocess(executable, instream, ["--dry"])
 
 
-def reduce_pdb(instream: typing.TextIO) -> typing.Tuple[int, typing.TextIO, typing.TextIO]:
+def reduce_pdb(instream: typing.TextIO, remove_hydrogens: bool = False) -> typing.Tuple[int, typing.TextIO, typing.TextIO]:
+    arg = '-trim' if remove_hydrogens else '-build'
     executable = get_amber_bin("reduce")
-    return run_subprocess(executable, instream, ["-build", "-"])
+    return run_subprocess(executable, instream, [arg, '-'])
 
 
-def make_parameter_files(in_stream: typing.TextIO, ff_type: ForceFieldType) -> typing.Tuple[int, typing.TextIO, typing.TextIO]:
+def make_parameter_files(in_stream: typing.TextIO, ff_type: ForceFieldType) -> typing.Tuple[
+    int, typing.TextIO, typing.TextIO]:
     # write input structure to temporary file
     tmp_pdb_fd, tmp_pdb_path = tempfile.mkstemp(text=True)
     tmp_prmtop_fd, tmp_prmtop_path = tempfile.mkstemp(text=True)
     tmp_prmcrd_fd, tmp_prmcrd_path = tempfile.mkstemp(text=True)
     tmp_tleap_fd, tmp_tleap_path = tempfile.mkstemp(text=True)
-
 
     tleap_input = f"""source {ff_type.value}
 pdb = loadPdb {tmp_pdb_path}
@@ -101,10 +102,9 @@ saveamberparm pdb {tmp_prmtop_path} {tmp_prmcrd_path}
 quit"""
 
     with open(tmp_pdb_fd, mode='r+') as tmp_pdb, \
-         open(tmp_prmtop_fd, mode='r+') as tmp_prmtop, \
-         open(tmp_prmcrd_fd, mode='r+') as tmp_prmcrd, \
-         open(tmp_tleap_fd, mode='r+') as tmp_tleap:
-
+        open(tmp_prmtop_fd, mode='r+') as tmp_prmtop, \
+        open(tmp_prmcrd_fd, mode='r+') as tmp_prmcrd, \
+        open(tmp_tleap_fd, mode='r+') as tmp_tleap:
         tmp_tleap.write(tleap_input)
         tmp_tleap.seek(0)
         tmp_pdb.write(in_stream.read())
@@ -122,7 +122,8 @@ quit"""
     return return_code, prmtop, prmcrd
 
 
-def run_sander(topology: typing.TextIO, coordinates: typing.TextIO, max_cycles: int) -> typing.Tuple[int, typing.BinaryIO, typing.TextIO]:
+def run_sander(topology: typing.TextIO, coordinates: typing.TextIO, max_cycles: int) -> typing.Tuple[
+    int, typing.BinaryIO, typing.TextIO]:
     """Runs sander on the PDB to minimize it"""
     tmp_topology_fd, tmp_topology_path = tempfile.mkstemp(text=True)
     tmp_coordinates_fd, tmp_coordinates_path = tempfile.mkstemp(text=True)
@@ -140,13 +141,15 @@ Minimization with implicit solvent
 /
 """
 
-    with open(tmp_topology_fd, 'w') as tmp_topology, open(tmp_coordinates_fd, 'w') as tmp_coordinates, open(tmp_mdin_fd, 'w') as tmp_mdin:
+    with open(tmp_topology_fd, 'w') as tmp_topology, open(tmp_coordinates_fd, 'w') as tmp_coordinates, open(tmp_mdin_fd,
+                                                                                                            'w') as tmp_mdin:
         tmp_topology.write(topology.read())
         tmp_coordinates.write(coordinates.read())
         tmp_mdin.write(input_file)
 
     executable = get_amber_bin("sander")
-    args = ['-O', '-i', tmp_mdin_path, '-o', tmp_mdout_path, '-c', tmp_coordinates_path, '-p', tmp_topology_path, '-r', tmp_restart_path]
+    args = ['-O', '-i', tmp_mdin_path, '-o', tmp_mdout_path, '-c', tmp_coordinates_path, '-p', tmp_topology_path, '-r',
+            tmp_restart_path]
 
     try:
         return_code, stdout, stderr = run_subprocess(executable, None, args)
@@ -157,7 +160,8 @@ Minimization with implicit solvent
             os.unlink(path)
 
 
-def convert_coords_to_pdb(topology: typing.TextIO, coordinates: typing.BinaryIO) -> typing.Tuple[int, typing.TextIO, typing.TextIO]:
+def convert_coords_to_pdb(topology: typing.TextIO, coordinates: typing.BinaryIO) -> typing.Tuple[
+    int, typing.TextIO, typing.TextIO]:
     tmp_topology_fd, tmp_topology_path = tempfile.mkstemp(text=True)
     tmp_coordinates_fd, tmp_coordinates_path = tempfile.mkstemp(text=True)
     tmp_pdb_fd, tmp_pdb_path = tempfile.mkstemp(text=True)
@@ -175,9 +179,10 @@ def convert_coords_to_pdb(topology: typing.TextIO, coordinates: typing.BinaryIO)
             os.unlink(path)
 
 
-def do_minimize_pdb(pdb: typing.TextIO, ff_type: ForceFieldType, rounds: int) -> typing.Tuple[int, typing.TextIO, typing.TextIO]:
+def do_minimize_pdb(pdb: typing.TextIO, ff_type: ForceFieldType, rounds: int) -> typing.Tuple[
+    int, typing.TextIO, typing.TextIO]:
     return_code, stdout, stderr = prep_pdb_for_amber(pdb)
     return_code, prmtop, prmcrd = make_parameter_files(stdout, ff_type)
     topology = prmtop.read()
-    return_code, final_coords, stderr  = run_sander(io.StringIO(topology), prmcrd, rounds)
+    return_code, final_coords, stderr = run_sander(io.StringIO(topology), prmcrd, rounds)
     return convert_coords_to_pdb(io.StringIO(topology), final_coords)
