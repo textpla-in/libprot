@@ -52,6 +52,7 @@ class Residue:
     chain: str
     res_num: int
     aa_type: AminoAcid
+    changed: bool = False
 
 
 @dataclass(frozen=True)
