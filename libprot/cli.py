@@ -111,7 +111,11 @@ def mutate_residues(structure: Structure, seqs: typing.Dict[str, typing.List[Res
     for mutation in mutations:
         residues: typing.List[Residue] = seqs[mutation.chain]
         to_replace = index_of_resnum(mutation.index, residues)
-        residues[to_replace] = Residue(chain=mutation.chain, res_num=mutation.index, aa_type=AminoAcid(protein_letters_1to3[mutation.to_aa].capitalize()), changed=True)
+        to_type = protein_letters_1to3[mutation.to_aa].capitalize()
+        if AminoAcid(protein_letters_1to3[mutation.from_aa].capitalize()) != residues[to_replace].aa_type:
+            raise Exception(f'Expected to mutate residue {residues[to_replace].res_num} from {mutation.from_aa} to {mutation.to_aa}, but residue had type {residues[to_replace].aa_type}')
+
+        residues[to_replace] = Residue(chain=mutation.chain, res_num=mutation.index, aa_type=AminoAcid(to_type), changed=True)
 
     return seqs
 
@@ -132,7 +136,7 @@ def add_indels(structure: Structure, residues: typing.Dict[str, typing.List[Resi
     for indel in indels:
         chain_res = residues[indel.chain]
         index_to_insert_at = index_of_resnum(indel.index, chain_res) + 1
-        residues[indel.chain] = chain_res[:index_to_insert_at] + [Residue(chain=mutation.chain, res_num=mutation.index, aa_type=AminoAcid(protein_letters_1to3[mutation.to_aa].capitalize()), changed=True)] + chain_res[index_to_insert_at:]
+        residues[indel.chain] = chain_res[:index_to_insert_at] + [Residue(chain=indel.chain, res_num=indel.index, aa_type=AminoAcid(protein_letters_1to3[indel.aa].capitalize()), changed=True)] + chain_res[index_to_insert_at:]
 
     return residues
 
@@ -168,7 +172,7 @@ def to_one_letter_alphabet(residues: typing.List[Residue]) -> str:
     return "".join([protein_letters_3to1[res.aa_type.value] for res in residues])
 
 
-def to_fasta_impl(template_pdb: Path, pdb_id: str, description: str, mutations: typing.List[str], insertions: typing.List[str], deletions: typing.List[str]) -> typing.List[SeqRecord]:
+def to_fasta_impl(template_pdb: Path, pdb_id: str, description: str, mutations: typing.List[str], insertions: typing.List[str], deletions: typing.List[str]) -> typing.List[typing.Tuple[SeqRecord, typing.List[Residue]]]:
     if pdb_id is None:
         pdb_id = ""
     if description is None:
@@ -191,9 +195,9 @@ def to_fasta_impl(template_pdb: Path, pdb_id: str, description: str, mutations: 
         first_idx = chain_residues[0].res_num
         residues[chain] = [dataclasses.replace(res, res_num=idx) for idx, res in zip(range(first_idx, first_idx + len(chain_residues)), chain_residues)]
 
-    records = [SeqRecord(Seq(to_one_letter_alphabet(seq), generic_protein),
+    records = [(SeqRecord(Seq(to_one_letter_alphabet(seq), generic_protein),
                          id=f'{pdb_id}-{chain}' if len(seqs) > 1 else pdb_id,
-                         description=f'{description}') for chain, seq in residues.items() if chain == 'A']
+                         description=f'{description}'), [res for res in seq if res.changed]) for chain, seq in residues.items() if chain == 'A']
     return records
 
 
