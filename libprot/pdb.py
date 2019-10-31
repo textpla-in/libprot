@@ -1,4 +1,4 @@
-from __future__ import annotations
+import io
 
 from dataclasses import dataclass, field
 from enum import Enum
@@ -6,6 +6,8 @@ from enum import Enum
 import typing
 from prody.proteins import parsePDBStream
 from typing import List
+
+from libprot.types import ResidueRenumberingDict
 
 
 class AminoAcid(Enum):
@@ -84,3 +86,27 @@ def get_amino_acids(stream: typing.TextIO) -> List[Residue]:
         rv.append(Residue(chain=str(x.getChid()), res_num=int(x.getResnum()), aa_type=aa_type))
 
     return rv
+
+
+def pad_line(line):
+    """Helper function to pad line to 80 characters in case it is shorter"""
+    size_of_line = len(line)
+    if size_of_line < 80:
+        padding = 80 - size_of_line + 1
+        line = line.strip('\n') + ' ' * padding + '\n'
+    return line[:81]  # 80 + newline character
+
+
+def renumber_pdb(pdb: typing.TextIO, d: ResidueRenumberingDict) -> typing.TextIO:
+    records = ('ATOM', 'HETATM', 'TER', 'ANISOU')
+
+    lines = []
+    for line in [pad_line(line) for line in pdb]:
+        if line.startswith(records):
+            replacement = d[int(line[22:26])]
+            lines.append(line[:22] + str(replacement).rjust(4) + line[26:])
+        else:
+            lines.append(line)
+    return io.StringIO(''.join(lines))
+
+

@@ -1,11 +1,15 @@
 import io
 import os
 import subprocess
+import sys
 import tempfile
+
+import typing
 from enum import Enum
 from pathlib import Path
-import typing
-import sys
+
+from libprot.pdb import renumber_pdb
+from libprot.types import ResidueRenumberingDict
 
 
 ## This generates the topology and coordinates using the protein force field
@@ -73,13 +77,26 @@ def get_amber_bin(program_name: str) -> Path:
     return executable
 
 
-def prep_pdb_for_amber(instream: typing.TextIO) -> typing.Tuple[int, typing.TextIO, typing.TextIO]:
+def parse_renumbering_file(name: str) -> ResidueRenumberingDict:
+    with open(name) as f:
+
+        renumberings = {}
+        for line in f:
+            from_aa, from_num, to_aa, to_num = line.split()
+            renumberings[int(to_num)] = int(from_num)
+
+        return renumberings
+
+
+def prep_pdb_for_amber(instream: typing.TextIO) -> typing.Tuple[int, typing.TextIO, typing.TextIO, ResidueRenumberingDict]:
     """Runs pdb4amber on the structure
     :param instream: an instream for the PDB.
     :return tuple(return code, stdout, stderr)
     """
     executable = get_amber_bin("pdb4amber")
-    return run_subprocess(executable, instream, ["--dry"])
+    ret_code, stdout, stderr = run_subprocess(executable, instream, ["--dry"])
+    renumbers = parse_renumbering_file('stdout_renum.txt')
+    return ret_code, stdout, stderr, renumbers
 
 
 def reduce_pdb(instream: typing.TextIO, remove_hydrogens: bool = False) -> typing.Tuple[int, typing.TextIO, typing.TextIO]:
@@ -160,8 +177,7 @@ Minimization with implicit solvent
             os.unlink(path)
 
 
-def convert_coords_to_pdb(topology: typing.TextIO, coordinates: typing.BinaryIO) -> typing.Tuple[
-    int, typing.TextIO, typing.TextIO]:
+def convert_coords_to_pdb(topology: typing.TextIO, coordinates: typing.BinaryIO) -> typing.Tuple[int, typing.TextIO, typing.TextIO]:
     tmp_topology_fd, tmp_topology_path = tempfile.mkstemp(text=True)
     tmp_coordinates_fd, tmp_coordinates_path = tempfile.mkstemp(text=True)
     tmp_pdb_fd, tmp_pdb_path = tempfile.mkstemp(text=True)
@@ -179,10 +195,10 @@ def convert_coords_to_pdb(topology: typing.TextIO, coordinates: typing.BinaryIO)
             os.unlink(path)
 
 
-def do_minimize_pdb(pdb: typing.TextIO, ff_type: ForceFieldType, rounds: int) -> typing.Tuple[
-    int, typing.TextIO, typing.TextIO]:
-    return_code, stdout, stderr = prep_pdb_for_amber(pdb)
+def do_minimize_pdb(pdb: typing.TextIO, ff_type: ForceFieldType, rounds: int) -> typing.TextIO:
+    return_code, stdout, stderr, renumber_dict = prep_pdb_for_amber(pdb)
     return_code, prmtop, prmcrd = make_parameter_files(stdout, ff_type)
     topology = prmtop.read()
     return_code, final_coords, stderr = run_sander(io.StringIO(topology), prmcrd, rounds)
-    return convert_coords_to_pdb(io.StringIO(topology), final_coords)
+    return_code, new_pdb, stderr = convert_coords_to_pdb(io.StringIO(topology), final_coords)
+    return renumber_pdb(new_pdb, renumber_dict)

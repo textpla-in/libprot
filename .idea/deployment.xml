@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="PublishConfigData" autoUpload="Always" serverName="nsg@asteroids.cs.duke.edu:22">
+    <serverData>
+      <paths name="nsg@asteroids.cs.duke.edu:22">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/tmp/libprot" local="$PROJECT_DIR$" />
+            <mapping deploy="/tmp/cde" local="$PROJECT_DIR$/../cde" />
+          </mappings>
+        </serverdata>
+      </paths>
+    </serverData>
+    <option name="myAutoUpload" value="ALWAYS" />
+  </component>
+</project>

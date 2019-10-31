@@ -7,11 +7,7 @@ import functools
 from Bio.PDB import PDBParser, Structure
 from prody import parsePDB, AtomGroup
 
-
-@dataclass(frozen=True)
-class ResidueIdentifier:
-    res_name: str
-    res_seq: int
+from libprot.types import ResidueIdentifier
 
 
 def find_mutated_residues(template: Structure, new_struct: Structure) -> typing.Set[ResidueIdentifier]:
@@ -35,21 +31,18 @@ def _get_residues_in_shell(atom_group: AtomGroup, residue: ResidueIdentifier, sh
     return set(ResidueIdentifier(res_name=atom.getResname(), res_seq=int(atom.getResnum())) for atom in shell_atoms)
 
 
-def mutants_and_residues_in_shell(template_structure: Path, target_structure: Path, shell: float = 0.0) -> typing.Set[ResidueIdentifier]:
+def mutants_and_residues_in_shell(target_structure: Path, changes: typing.Dict[str, object], shell: float = 0.0) -> typing.Set[ResidueIdentifier]:
 
-    with template_structure.open() as template, target_structure.open() as target:
-        # Find mutations
-        bio_template = PDBParser(QUIET=True).get_structure(template_structure.name, template)
-        bio_target = PDBParser(QUIET=True).get_structure(target_structure.name, target)
-        diffs = find_mutated_residues(bio_template, bio_target)
+    # Find mutations
+    changed_res = {ResidueIdentifier(res_name=change['type'], res_seq=change['index']) for change in changes}
 
-        if shell == 0.0:
-            return diffs
+    if shell == 0.0:
+        return changed_res
 
-        # Find all residues within any of the mutations
-        prody_target = parsePDB(target_structure)
-        in_shell_residues = [_get_residues_in_shell(prody_target, flexible_residues, shell)
-                             for flexible_residues in diffs]
-        all_in_shells = functools.reduce(operator.ior, in_shell_residues)
+    # Find all residues within any of the mutations
+    prody_target = parsePDB(str(target_structure))
+    in_shell_residues = [_get_residues_in_shell(prody_target, flexible_residues, shell)
+                         for flexible_residues in changed_res]
+    all_in_shells = functools.reduce(operator.ior, in_shell_residues)
 
-        return all_in_shells | diffs
+    return all_in_shells | changed_res
